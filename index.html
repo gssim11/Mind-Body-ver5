@@ -469,6 +469,21 @@
         </div>
     </div>
 
+    <!-- 이미지 저장 오버레이 (카카오톡 인앱 등 다운로드/공유가 막히는 환경 대응) -->
+    <div id="image-save-modal" class="fixed inset-0 z-[90] hidden flex-col bg-black/90 px-4 py-5 overflow-y-auto" data-html2canvas-ignore="true">
+        <div class="max-w-md w-full mx-auto">
+            <p class="text-white text-center text-sm leading-relaxed mb-3">
+                아래 결과 이미지를 <b class="text-yellow-300">손가락으로 길게 눌러</b> <b>‘이미지 저장’</b>을 선택하세요.<br>
+                저장한 뒤 카카오채널 채팅창에서 <b>앨범/사진</b>으로 첨부해 보내주세요.
+            </p>
+            <a id="captured-download" class="block w-full text-center py-3 mb-3 rounded-xl font-bold" style="background-color:#FEE500;color:#3A1D1D;" download>
+                <i class="fa-solid fa-download mr-2"></i> 이미지 다운로드 시도
+            </a>
+            <img id="captured-image" alt="결과 이미지" class="w-full h-auto rounded-lg border border-white/20 bg-white" />
+            <button id="image-save-close" class="block w-full text-center text-white/80 underline mt-4 mb-10">닫기</button>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div id="capture-area" class="max-w-5xl mx-auto p-4 md:p-8 bg-gray-50">
         
@@ -1544,45 +1559,40 @@
 
                 const userName = document.getElementById('name').value || '익명';
                 const filename = `통합분석결과_${userName}_${Date.now()}.png`;
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-                const file = new File([blob], filename, { type: 'image/png' });
+                const dataUrl = canvas.toDataURL('image/png');
                 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
-                // 1) 모바일: 파일 공유(카카오톡에 '파일'로 전송 → 화질 보존, 인앱 다운로드 제한 우회)
-                if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+                // 1) 일반 브라우저(공유 지원): 파일 공유 → 카카오톡에 '파일'로 전송(화질 보존)
+                if (isMobile && navigator.canShare) {
                     try {
-                        await navigator.share({ files: [file], title: '통합 분석 결과', text: '신체 및 심리 통합 분석 결과지' });
-                        showToast("<i class='fa-solid fa-check mr-2'></i>공유 창에서 카카오톡을 선택해 전송하세요.", "success");
-                        return;
+                        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                        const file = new File([blob], filename, { type: 'image/png' });
+                        if (navigator.canShare({ files: [file] })) {
+                            await navigator.share({ files: [file], title: '통합 분석 결과', text: '신체 및 심리 통합 분석 결과지' });
+                            showToast("<i class='fa-solid fa-check mr-2'></i>공유 창에서 카카오톡을 선택해 전송하세요.", "success");
+                            return;
+                        }
                     } catch (shareErr) {
                         if (shareErr && shareErr.name === 'AbortError') return; // 사용자가 취소
                         // 공유 실패 시 아래 폴백
                     }
                 }
 
-                const url = URL.createObjectURL(blob);
-
-                // 2) 모바일 폴백: 새 탭에 이미지를 띄워 길게 눌러 저장 (다운로드가 막히는 인앱 브라우저 대응)
-                if (isMobile) {
-                    const win = window.open();
-                    if (win) {
-                        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${filename}</title></head><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center"><p style="color:#fff;font-family:sans-serif;font-size:15px;line-height:1.5;padding:14px;text-align:center;margin:0">아래 이미지를 <b>길게 눌러</b> &lsquo;이미지 저장&rsquo;을 선택하세요.<br>저장 후 카카오톡으로 보낼 때는 <b>원본/파일</b>로 보내면 선명합니다.</p><img src="${url}" style="width:100%;height:auto;display:block"/></body></html>`);
-                        win.document.close();
-                        showToast("<i class='fa-solid fa-check mr-2'></i>새 탭에서 이미지를 길게 눌러 저장하세요.", "success");
-                        return;
-                    }
-                    // 팝업이 차단되면 아래 다운로드로 폴백
+                // 2) PC: 파일 다운로드
+                if (!isMobile) {
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast("<i class='fa-solid fa-check mr-2'></i>이미지 파일이 저장되었습니다.", "success");
+                    return;
                 }
 
-                // 3) PC/최종 폴백: 파일 다운로드
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 8000);
-                showToast("<i class='fa-solid fa-check mr-2'></i>이미지 파일이 저장되었습니다.", "success");
+                // 3) 모바일(카카오톡 인앱 포함): 이미지를 화면에 띄워 '길게 눌러 저장' → 갤러리에서 카카오로 전송
+                showImageOverlay(dataUrl, filename);
+                showToast("<i class='fa-solid fa-check mr-2'></i>이미지를 길게 눌러 저장하세요.", "success");
             } catch (err) {
                 console.error(err);
                 showToast("생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error");
@@ -1590,6 +1600,18 @@
                 btnElement.innerHTML = originHTML;
             }
         };
+
+        function showImageOverlay(dataUrl, filename) {
+            const modal = document.getElementById('image-save-modal');
+            const img = document.getElementById('captured-image');
+            const dl = document.getElementById('captured-download');
+            if(!modal || !img) return;
+            img.src = dataUrl;
+            if(dl) { dl.href = dataUrl; dl.setAttribute('download', filename); }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.scrollTop = 0;
+        }
 
         function runAnalysis() {
             const getSingleVal = (id) => {
@@ -2291,6 +2313,12 @@
 
             if(btnSaveImg) btnSaveImg.addEventListener('click', function() { handleCaptureUnified(this); });
             if(btnModalSaveImg) btnModalSaveImg.addEventListener('click', function() { handleCaptureUnified(this); });
+
+            const imgSaveClose = document.getElementById('image-save-close');
+            if(imgSaveClose) imgSaveClose.addEventListener('click', () => {
+                const m = document.getElementById('image-save-modal');
+                m.classList.add('hidden'); m.classList.remove('flex');
+            });
 
             const kakaoBtn = document.getElementById('modal-kakao-btn');
             if (kakaoBtn) {
