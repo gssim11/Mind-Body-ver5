@@ -443,14 +443,12 @@
                     <span class="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded-md mr-2">1단계</span>
                     <span class="font-bold text-gray-800">결과지 기기에 저장하기</span>
                 </div>
-                <div class="flex gap-2">
-                    <button id="modal-save-pdf-btn" class="flex-1 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-100 transition-colors shadow-sm flex items-center justify-center">
-                        <i class="fa-solid fa-file-pdf text-gray-500 mr-2"></i> PDF 저장
-                    </button>
-                    <button id="modal-save-img-btn" class="flex-1 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-100 transition-colors shadow-sm flex items-center justify-center">
-                        <i class="fa-solid fa-image text-gray-500 mr-2"></i> 이미지 저장
-                    </button>
-                </div>
+                <button id="modal-save-img-btn" class="w-full py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-100 transition-colors shadow-sm flex items-center justify-center">
+                    <i class="fa-solid fa-image text-gray-500 mr-2"></i> 결과지 이미지 저장 / 공유
+                </button>
+                <p class="text-xs text-gray-500 mt-2 text-left leading-relaxed">
+                    * 휴대폰: 공유 창에서 카카오톡을 고르면 <strong>파일(원본)로 전송</strong>되어 선명합니다. 공유가 안 되면 새 탭에 뜬 이미지를 <strong>길게 눌러 저장</strong>하세요.
+                </p>
             </div>
 
             <!-- 2단계: 카카오채널 문의 영역 -->
@@ -1193,13 +1191,11 @@
 
             <!-- Action Buttons (제출 통합 UI 개편) -->
             <div class="flex flex-col justify-center mt-8 pb-10 px-4" data-html2canvas-ignore="true">
-                <!-- PDF/이미지 저장 (메인 버튼 화면) -->
-                <button id="save-pdf-btn" class="flex-1 sm:flex-none bg-red-600 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-red-700 transition-colors shadow-lg flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-file-pdf mr-2"></i> 결과지 PDF 인쇄/저장
+                <!-- 결과지 이미지 저장/공유 (메인 버튼 화면) -->
+                <button id="save-image-btn" class="flex-1 sm:flex-none bg-gray-800 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-gray-900 transition-colors shadow-lg flex items-center justify-center mb-1">
+                    <i class="fa-solid fa-image mr-2"></i> 결과지 이미지 저장 / 공유
                 </button>
-                <button id="save-image-btn" class="flex-1 sm:flex-none bg-gray-800 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-gray-900 transition-colors shadow-lg flex items-center justify-center mb-3">
-                    <i class="fa-solid fa-image mr-2"></i> 이미지로 저장
-                </button>
+                <p class="text-xs text-gray-500 text-center mb-3">휴대폰은 공유 창에서 카카오톡을 선택하면 파일(원본)로 전송되어 선명합니다.</p>
                 <button id="main-submit-btn" class="flex-1 sm:flex-none font-bold py-3.5 px-8 rounded-xl transition-all shadow-lg flex items-center justify-center hover:brightness-95" style="background-color:#FEE500; color:#3A1D1D;">
                     <i class="fa-brands fa-kakaotalk mr-2"></i> 굿얼라인재활필라테스 카카오채널로 전송
                 </button>
@@ -1527,14 +1523,13 @@
         }
 
         // 🌟 통합 다운로드 캡처 실행 함수 (PC, 모바일 100% 호환 보장)
-        const handleCaptureUnified = async (btnElement, isPdf) => {
+        // 결과지 이미지 스마트 저장/공유 (이미지 1개로 통일)
+        const handleCaptureUnified = async (btnElement) => {
             const originHTML = btnElement.innerHTML;
-            btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> ${isPdf ? 'PDF' : '이미지'} 생성 중...`;
+            btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> 이미지 생성 중...`;
 
             try {
                 const clone = prepareClone();
-                
-                // 폰/PC 모두 jsPDF & html2canvas 방식으로 통일하여 안전하게 추출
                 const canvas = await html2canvas(clone, {
                     scale: 2,
                     useCORS: true,
@@ -1543,68 +1538,51 @@
                     width: clone.scrollWidth,
                     height: clone.scrollHeight,
                     windowHeight: clone.scrollHeight + 200,
-                    ignoreElements: (el) => el.id === 'main-submit-btn' || el.id === 'submission-modal' || el.id === 'consent-modal' || el.id === 'in-app-warning' || el.id === 'save-pdf-btn' || el.id === 'save-image-btn' || el.id === 'modal-save-pdf-btn' || el.id === 'modal-save-img-btn' || el.id === 'reset-form-btn'
+                    ignoreElements: (el) => el.id === 'main-submit-btn' || el.id === 'submission-modal' || el.id === 'consent-modal' || el.id === 'in-app-warning' || el.id === 'save-image-btn' || el.id === 'modal-save-img-btn' || el.id === 'reset-form-btn'
                 });
-                
                 document.body.removeChild(clone);
 
                 const userName = document.getElementById('name').value || '익명';
-                const dateStr = Date.now();
-
-                // 1) 파일(blob) 생성
-                let blob, filename, mime;
-                if (isPdf) {
-                    const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                    const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
-                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const pdfHeight = pdf.internal.pageSize.getHeight();
-                    const imgRatio = canvas.height / canvas.width;
-                    const finalImgHeight = pdfWidth * imgRatio;
-                    let heightLeft = finalImgHeight;
-                    let position = 0;
-
-                    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, finalImgHeight);
-                    heightLeft -= pdfHeight;
-                    while (heightLeft > 0) {
-                        position = heightLeft - finalImgHeight;
-                        pdf.addPage();
-                        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, finalImgHeight);
-                        heightLeft -= pdfHeight;
-                    }
-                    blob = pdf.output('blob');
-                    filename = `통합분석결과_${userName}_${dateStr}.pdf`;
-                    mime = 'application/pdf';
-                } else {
-                    blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-                    filename = `통합분석결과_${userName}_${dateStr}.png`;
-                    mime = 'image/png';
-                }
-
-                const file = new File([blob], filename, { type: mime });
+                const filename = `통합분석결과_${userName}_${Date.now()}.png`;
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                const file = new File([blob], filename, { type: 'image/png' });
                 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
-                // 2) 모바일: Web Share API로 '파일' 공유 → 카카오톡에 파일(원본)로 전송 (PDF 형식·화질 보존)
+                // 1) 모바일: 파일 공유(카카오톡에 '파일'로 전송 → 화질 보존, 인앱 다운로드 제한 우회)
                 if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({ files: [file], title: '통합 분석 결과', text: '신체 및 심리 통합 분석 결과지' });
-                        showToast(`<i class='fa-solid fa-check mr-2'></i>${isPdf ? 'PDF' : '이미지'} 파일 공유 창을 열었습니다. 카카오톡을 선택해 전송하세요.`, "success");
+                        showToast("<i class='fa-solid fa-check mr-2'></i>공유 창에서 카카오톡을 선택해 전송하세요.", "success");
                         return;
                     } catch (shareErr) {
-                        if (shareErr && shareErr.name === 'AbortError') return; // 사용자가 공유를 취소함
-                        // 그 외 오류는 아래 다운로드로 폴백
+                        if (shareErr && shareErr.name === 'AbortError') return; // 사용자가 취소
+                        // 공유 실패 시 아래 폴백
                     }
                 }
 
-                // 3) PC/폴백: 실제 파일 다운로드
                 const url = URL.createObjectURL(blob);
+
+                // 2) 모바일 폴백: 새 탭에 이미지를 띄워 길게 눌러 저장 (다운로드가 막히는 인앱 브라우저 대응)
+                if (isMobile) {
+                    const win = window.open();
+                    if (win) {
+                        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${filename}</title></head><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center"><p style="color:#fff;font-family:sans-serif;font-size:15px;line-height:1.5;padding:14px;text-align:center;margin:0">아래 이미지를 <b>길게 눌러</b> &lsquo;이미지 저장&rsquo;을 선택하세요.<br>저장 후 카카오톡으로 보낼 때는 <b>원본/파일</b>로 보내면 선명합니다.</p><img src="${url}" style="width:100%;height:auto;display:block"/></body></html>`);
+                        win.document.close();
+                        showToast("<i class='fa-solid fa-check mr-2'></i>새 탭에서 이미지를 길게 눌러 저장하세요.", "success");
+                        return;
+                    }
+                    // 팝업이 차단되면 아래 다운로드로 폴백
+                }
+
+                // 3) PC/최종 폴백: 파일 다운로드
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = filename;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 4000);
-                showToast(`<i class='fa-solid fa-check mr-2'></i>${isPdf ? 'PDF' : '이미지'} 파일이 저장되었습니다.`, "success");
+                setTimeout(() => URL.revokeObjectURL(url), 8000);
+                showToast("<i class='fa-solid fa-check mr-2'></i>이미지 파일이 저장되었습니다.", "success");
             } catch (err) {
                 console.error(err);
                 showToast("생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error");
@@ -2307,17 +2285,12 @@
             const submissionModalCancelBtn = document.getElementById('submission-modal-cancel');
             if(submissionModalCancelBtn) submissionModalCancelBtn.addEventListener('click', () => closeModal('submission-modal'));
 
-            // 🌟 캡처/다운로드 이벤트 (메인 화면 버튼 + 모달 안 버튼 동일 함수 연결 - 엔진 통합)
-            const btnSavePdf = document.getElementById('save-pdf-btn');
-            const btnModalSavePdf = document.getElementById('modal-save-pdf-btn');
+            // 🌟 결과지 이미지 저장/공유 이벤트 (메인 화면 + 모달 동일 함수)
             const btnSaveImg = document.getElementById('save-image-btn');
             const btnModalSaveImg = document.getElementById('modal-save-img-btn');
 
-            if(btnSavePdf) btnSavePdf.addEventListener('click', function() { handleCaptureUnified(this, true); });
-            if(btnModalSavePdf) btnModalSavePdf.addEventListener('click', function() { handleCaptureUnified(this, true); });
-            
-            if(btnSaveImg) btnSaveImg.addEventListener('click', function() { handleCaptureUnified(this, false); });
-            if(btnModalSaveImg) btnModalSaveImg.addEventListener('click', function() { handleCaptureUnified(this, false); });
+            if(btnSaveImg) btnSaveImg.addEventListener('click', function() { handleCaptureUnified(this); });
+            if(btnModalSaveImg) btnModalSaveImg.addEventListener('click', function() { handleCaptureUnified(this); });
 
             const kakaoBtn = document.getElementById('modal-kakao-btn');
             if (kakaoBtn) {
